@@ -1,0 +1,92 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1789447797884,
+  "projectRoot": "/Users/minwoo/Projects/ai-native-agent/gcp-compute-engine-chatbot",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "requirements.txt"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "pip",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "static"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "__pycache__": {
+      "path": "__pycache__",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1789447797878,
+      "keyFiles": [
+        "app.cpython-314.pyc"
+      ]
+    },
+    "static": {
+      "path": "static",
+      "purpose": "Static files",
+      "fileCount": 1,
+      "lastAccessed": 1789447797879,
+      "keyFiles": [
+        "index.html"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "static/index.html",
+      "accessCount": 7,
+      "lastAccessed": 1789448390443,
+      "type": "file"
+    },
+    {
+      "path": "app.py",
+      "accessCount": 6,
+      "lastAccessed": 1789448428289,
+      "type": "file"
+    },
+    {
+      "path": "PRD.md",
+      "accessCount": 1,
+      "lastAccessed": 1789447906925,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 1,
+      "lastAccessed": 1789449619867,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

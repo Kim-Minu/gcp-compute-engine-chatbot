@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gemini Chatbot</title>
+  <!-- 응답 마크다운 렌더링 (로드 실패 시 일반 텍스트로 표시) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+  <style>
+    /* Gemini 웹 UI 색상 체계 참조 */
+    :root {
+      --bg: #ffffff; --surface: #f0f4f9; --surface-hi: #dde3ea;
+      --text: #1f1f1f; --muted: #444746; --subtle: #747775;
+      --user-bubble: #e9eef6; --accent: #0b57d0; --border: #dde3ea;
+      --code-bg: #f0f4f9;
+      --greet: linear-gradient(74deg, #4285f4 0%, #9b72cb 45%, #d96570 90%);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #131314; --surface: #1e1f20; --surface-hi: #333537;
+        --text: #e3e3e3; --muted: #c4c7c5; --subtle: #8e918f;
+        --user-bubble: #333537; --accent: #a8c7fa; --border: #333537;
+        --code-bg: #1e1f20;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--bg); color: var(--text); display: flex; overflow: hidden;
+      font-family: "Google Sans", "Google Sans Text", -apple-system, BlinkMacSystemFont,
+        "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    }
+    button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+    svg.icon { width: 24px; height: 24px; fill: currentColor; flex: none; }
+    .icon-btn {
+      width: 48px; height: 48px; border-radius: 50%;
+      display: grid; place-items: center; color: var(--muted);
+    }
+    .icon-btn:hover { background: var(--surface-hi); }
+
+    /* ── 사이드바 ───────────────────────────── */
+    #sidebar {
+      width: 72px; background: var(--surface); padding: 12px;
+      display: flex; flex-direction: column; gap: 8px;
+      transition: width .2s ease; overflow: hidden; flex: none;
+    }
+    body.expanded #sidebar { width: 280px; }
+    .side-item {
+      height: 48px; min-width: 48px; border-radius: 24px; padding: 0 12px;
+      display: flex; align-items: center; gap: 12px; color: var(--muted);
+      white-space: nowrap; font-size: 14px;
+    }
+    .side-item:hover:not(:disabled) { background: var(--surface-hi); }
+    .side-item:disabled { opacity: .5; cursor: default; }
+    .side-label { opacity: 0; transition: opacity .15s; overflow: hidden; text-overflow: ellipsis; }
+    body.expanded .side-label { opacity: 1; }
+    #recent { margin-top: 16px; display: none; }
+    body.expanded #recent.has { display: block; }
+    #recent h2 { font-size: 14px; font-weight: 500; margin: 0 0 8px 12px; color: var(--text); }
+    #recent .side-item { background: var(--surface-hi); color: var(--text); width: 100%; cursor: default; }
+
+    /* ── 메인 ─────────────────────────────── */
+    main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .topbar { height: 64px; padding: 0 12px; display: flex; align-items: center; gap: 4px; flex: none; }
+    .topbar .mobile { display: none; }
+    .brand { font-size: 20px; padding: 0 8px; color: var(--muted); }
+    .model-chip {
+      font-size: 12px; color: var(--muted); background: var(--surface);
+      border-radius: 16px; padding: 4px 12px;
+    }
+
+    #scroll { overflow-y: auto; margin-top: auto; }
+    body.chatting #scroll { flex: 1; margin-top: 0; }
+    .column { max-width: 760px; width: 100%; margin: 0 auto; padding: 0 24px; }
+
+    #welcome { padding-bottom: 32px; }
+    body.chatting #welcome { display: none; }
+    #welcome h1 {
+      font-size: clamp(32px, 5vw, 44px); font-weight: 500; margin: 0; line-height: 1.25;
+      background: var(--greet); -webkit-background-clip: text; background-clip: text; color: transparent;
+      width: fit-content;
+    }
+    #welcome p { font-size: clamp(32px, 5vw, 44px); font-weight: 500; margin: 0; color: var(--surface-hi); line-height: 1.25; }
+
+    #log { display: flex; flex-direction: column; gap: 32px; padding: 16px 24px 32px; }
+    .msg.user {
+      align-self: flex-end; max-width: 75%; background: var(--user-bubble);
+      padding: 12px 16px; border-radius: 24px 4px 24px 24px;
+      white-space: pre-wrap; word-break: break-word; line-height: 1.6;
+    }
+    .msg.model { display: flex; gap: 16px; align-items: flex-start; }
+    .avatar { width: 32px; height: 32px; display: grid; place-items: center; flex: none; }
+    .avatar svg { width: 24px; height: 24px; }
+    .avatar.loading svg { animation: spin 1.4s cubic-bezier(.4,0,.2,1) infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .body { flex: 1; min-width: 0; }
+    .content { line-height: 1.7; padding-top: 3px; word-break: break-word; }
+    .sources { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .source {
+      display: flex; align-items: center; gap: 8px; max-width: 260px;
+      padding: 6px 12px; border-radius: 16px; background: var(--surface);
+      color: var(--muted); font-size: 13px; text-decoration: none;
+    }
+    .source:hover { background: var(--surface-hi); }
+    .source b { color: var(--accent); font-weight: 500; }
+    .source span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .search-suggest { margin-top: 12px; }
+    .content.plain { white-space: pre-wrap; }
+    .content.error { color: #d93025; }
+    .content > :first-child { margin-top: 0; }
+    .content > :last-child { margin-bottom: 0; }
+    .content pre {
+      background: var(--code-bg); padding: 16px; border-radius: 16px; overflow-x: auto;
+      font-size: 13px; line-height: 1.5;
+    }
+    .content code { font-family: "Google Sans Mono", ui-monospace, Menlo, monospace; font-size: .9em; }
+    .content :not(pre) > code { background: var(--code-bg); padding: 2px 6px; border-radius: 6px; }
+    .content table { border-collapse: collapse; display: block; overflow-x: auto; }
+    .content th, .content td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+    .content a { color: var(--accent); }
+    .loading-bars { display: grid; gap: 8px; padding-top: 8px; }
+    .loading-bars i {
+      height: 14px; border-radius: 8px; display: block;
+      background: linear-gradient(90deg, var(--surface) 0%, var(--surface-hi) 50%, var(--surface) 100%);
+      background-size: 200% 100%; animation: shimmer 1.4s linear infinite;
+    }
+    .loading-bars i:last-child { width: 60%; }
+    @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+    /* ── 입력창 ───────────────────────────── */
+    .composer-wrap { flex: none; margin-bottom: auto; padding-bottom: 12px; }
+    body.chatting .composer-wrap { margin-bottom: 0; }
+    #form {
+      background: var(--surface); border-radius: 32px; padding: 8px 8px 8px 24px;
+      display: flex; align-items: flex-end; gap: 8px;
+    }
+    #form:focus-within { background: var(--surface-hi); }
+    textarea {
+      flex: 1; resize: none; border: 0; outline: none; background: transparent; color: var(--text);
+      font: inherit; font-size: 16px; line-height: 24px; padding: 12px 0; max-height: 200px;
+    }
+    textarea::placeholder { color: var(--subtle); }
+    #send { color: var(--accent); }
+    #send:disabled { color: var(--subtle); cursor: default; background: none; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    body.chatting .chips { display: none; }
+    .chip {
+      border: 1px solid var(--border); border-radius: 20px; padding: 8px 16px;
+      font-size: 14px; color: var(--muted);
+    }
+    .chip:hover { background: var(--surface); }
+    .disclaimer { font-size: 12px; color: var(--subtle); text-align: center; margin: 12px 0 0; display: none; }
+    body.chatting .disclaimer { display: block; }
+
+    /* ── 모바일 ───────────────────────────── */
+    @media (max-width: 768px) {
+      #sidebar {
+        position: fixed; inset: 0 auto 0 0; z-index: 10; width: 280px;
+        transform: translateX(-100%); transition: transform .2s ease;
+      }
+      body.expanded #sidebar { transform: none; box-shadow: 0 0 24px rgba(0,0,0,.3); }
+      .side-label { opacity: 1; }
+      .topbar .mobile { display: grid; }
+      .column { padding: 0 16px; }
+      #log { padding: 16px 16px 24px; }
+      .msg.user { max-width: 85%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Gemini 스파클 그라디언트 (모든 아바타 SVG가 참조) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="gem" x1="0" y1="1" x2="1" y2="0">
+        <stop offset="0" stop-color="#4285f4" />
+        <stop offset=".55" stop-color="#9b72cb" />
+        <stop offset="1" stop-color="#d96570" />
+      </linearGradient>
+      <symbol id="sparkle" viewBox="0 0 24 24">
+        <path fill="url(#gem)" d="M12 24A14.3 14.3 0 0 0 0 12 14.3 14.3 0 0 0 12 0a14.3 14.3 0 0 0 12 12 14.3 14.3 0 0 0-12 12" />
+      </symbol>
+    </defs>
+  </svg>
+
+  <nav id="sidebar">
+    <button class="icon-btn menu-btn" type="button" data-toggle aria-label="메뉴">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
+    <button class="side-item" id="reset" type="button" disabled>
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      <span class="side-label">새 채팅</span>
+    </button>
+    <div id="recent">
+      <h2 class="side-label">최근</h2>
+      <div class="side-item">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
+        <span class="side-label" id="recent-title"></span>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <header class="topbar">
+      <button class="icon-btn mobile" type="button" data-toggle aria-label="메뉴">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+      </button>
+      <span class="brand">Gemini</span>
+      <span class="model-chip" id="model">…</span>
+    </header>
+
+    <div id="scroll">
+      <section id="welcome" class="column">
+        <h1>안녕하세요</h1>
+        <p>무엇을 도와드릴까요?</p>
+      </section>
+      <div id="log" class="column"></div>
+    </div>
+
+    <div class="composer-wrap column">
+      <form id="form">
+        <textarea id="input" rows="1" placeholder="Gemini에게 물어보기" autofocus></textarea>
+        <button id="send" class="icon-btn" type="submit" aria-label="보내기" disabled>
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3.4 20.4 20.85 12.92a1 1 0 0 0 0-1.84L3.4 3.6a.99.99 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"/></svg>
+        </button>
+      </form>
+      <div class="chips">
+        <button class="chip" type="button">Compute Engine VM 만드는 방법 알려줘</button>
+        <button class="chip" type="button">FastAPI 스트리밍 응답 예제 보여줘</button>
+        <button class="chip" type="button">Secret Manager 사용법 요약해줘</button>
+      </div>
+      <p class="disclaimer">Gemini는 실수를 할 수 있으므로 중요한 정보는 다시 확인하세요.</p>
+    </div>
+  </main>
+
+  <script>
+    const scroller = document.getElementById("scroll");
+    const log = document.getElementById("log");
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+    const resetBtn = document.getElementById("reset");
+    const history = []; // [{role: "user"|"model", text}]
+    let busy = false;
+    let controller = null;
+
+    fetch("/api/health").then(r => r.json())
+      .then(d => document.getElementById("model").textContent = d.model)
+      .catch(() => {});
+
+    const scrollToEnd = () => { scroller.scrollTop = scroller.scrollHeight; };
+    const syncSend = () => { sendBtn.disabled = busy || !input.value.trim(); };
+
+    function renderMarkdown(el, text) {
+      if (window.marked && window.DOMPurify) {
+        el.innerHTML = DOMPurify.sanitize(marked.parse(text));
+      } else {
+        el.classList.add("plain");
+        el.textContent = text;
+      }
+    }
+
+    function addUser(text) {
+      const el = document.createElement("div");
+      el.className = "msg user";
+      el.textContent = text;
+      log.appendChild(el);
+    }
+
+    function addModel() {
+      const el = document.createElement("div");
+      el.className = "msg model";
+      el.innerHTML = `
+        <div class="avatar loading"><svg><use href="#sparkle"/></svg></div>
+        <div class="body">
+          <div class="content"><div class="loading-bars"><i></i><i></i><i></i></div></div>
+        </div>`;
+      log.appendChild(el);
+      return {
+        avatar: el.querySelector(".avatar"),
+        body: el.querySelector(".body"),
+        content: el.querySelector(".content"),
+      };
+    }
+
+    // 검색 출처 칩 + Google 검색 추천 위젯(그라운딩 사용 시 표시 필요)
+    function renderSources(body, { sources = [], search_html }) {
+      if (sources.length) {
+        const wrap = document.createElement("div");
+        wrap.className = "sources";
+        sources.forEach(({ title, uri }, i) => {
+          const a = document.createElement("a");
+          a.className = "source";
+          a.href = uri; a.target = "_blank"; a.rel = "noopener noreferrer";
+          a.innerHTML = `<b>${i + 1}</b><span></span>`;
+          a.querySelector("span").textContent = title;
+          wrap.appendChild(a);
+        });
+        body.appendChild(wrap);
+      }
+      if (search_html) {
+        const host = document.createElement("div");
+        host.className = "search-suggest";
+        // Shadow DOM 으로 위젯 CSS 가 페이지 스타일과 섞이지 않게 격리
+        host.attachShadow({ mode: "open" }).innerHTML = search_html;
+        body.appendChild(host);
+      }
+    }
+
+    function startChat(firstText) {
+      document.body.classList.add("chatting");
+      resetBtn.disabled = false;
+      document.getElementById("recent").classList.add("has");
+      document.getElementById("recent-title").textContent = firstText;
+    }
+
+    async function send(text) {
+      if (!history.length) startChat(text);
+      history.push({ role: "user", text });
+      addUser(text);
+      const { avatar, body, content } = addModel();
+      scrollToEnd();
+      busy = true; syncSend();
+      controller = new AbortController();
+
+      let reply = "";
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: history }),
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+
+        // 서버는 NDJSON 으로 응답: 한 줄에 이벤트 하나 (text / sources / error)
+        const handle = (line) => {
+          if (!line.trim()) return;
+          const ev = JSON.parse(line);
+          if (ev.type === "text") {
+            reply += ev.text;
+            renderMarkdown(content, reply);
+          } else if (ev.type === "sources") {
+            renderSources(body, ev);
+          } else if (ev.type === "error") {
+            throw new Error(ev.message);
+          }
+          scrollToEnd();
+        };
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop(); // 아직 끝나지 않은 줄은 다음 청크와 합친다
+          lines.forEach(handle);
+        }
+        handle(buf);
+        history.push({ role: "model", text: reply });
+      } catch (err) {
+        if (err.name === "AbortError") return; // 새 채팅으로 중단됨
+        content.className = "content error plain";
+        content.textContent = `[오류] ${err.message}`;
+        history.pop(); // 실패한 user 메시지는 기록에서 제거
+      } finally {
+        avatar.classList.remove("loading");
+        busy = false; syncSend();
+        input.focus();
+      }
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text || busy) return;
+      input.value = "";
+      autosize();
+      send(text);
+    });
+
+    function autosize() {
+      input.style.height = "auto";
+      input.style.height = `${input.scrollHeight}px`;
+      syncSend();
+    }
+    input.addEventListener("input", autosize);
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    document.querySelectorAll(".chip").forEach(chip =>
+      chip.addEventListener("click", () => { if (!busy) send(chip.textContent); }));
+
+    document.querySelectorAll("[data-toggle]").forEach(btn =>
+      btn.addEventListener("click", () => document.body.classList.toggle("expanded")));
+
+    resetBtn.addEventListener("click", () => {
+      controller?.abort();
+      history.length = 0;
+      log.innerHTML = "";
+      document.body.classList.remove("chatting", "expanded");
+      document.getElementById("recent").classList.remove("has");
+      resetBtn.disabled = true;
+      input.focus();
+    });
+  </script>
+</body>
+</html>
