@@ -1,0 +1,14 @@
+[Unit]
+Description=Gemini Chatbot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=chatbot
+WorkingDirectory=/opt/chatbot
+ExecStart=/opt/chatbot/deploy/start.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
