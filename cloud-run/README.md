@@ -3,6 +3,8 @@
 [`compute-engine/`](../compute-engine/) 의 챗봇을 컨테이너로 만들어 Cloud Run 에 배포합니다.
 소스는 복제하지 않고 `compute-engine/` 의 파일을 그대로 빌드합니다.
 
+실제 배포 과정과 현재 상태는 [DEPLOY.md](DEPLOY.md) 에 정리되어 있습니다.
+
 | 파일 | 내용 |
 |---|---|
 | `Dockerfile` | python:3.13-slim 기반. 빌드 컨텍스트는 **저장소 루트** |

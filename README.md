@@ -17,4 +17,7 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn app:app --reload
 ```
-자세한 실행·배포 방법은 [compute-engine/README.md](compute-engine/README.md), 실제 배포 기록은 [compute-engine/DEPLOY.md](compute-engine/DEPLOY.md) 를 참고하세요.
+| 배포 방식 | 가이드 | 배포 기록 |
+|---|---|---|
+| Compute Engine VM | [compute-engine/README.md](compute-engine/README.md) | [compute-engine/DEPLOY.md](compute-engine/DEPLOY.md) |
+| Cloud Run | [cloud-run/README.md](cloud-run/README.md) | [cloud-run/DEPLOY.md](cloud-run/DEPLOY.md) |
