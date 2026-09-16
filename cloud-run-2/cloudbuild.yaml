@@ -1,0 +1,14 @@
+# 저장소 루트를 컨텍스트로 하되 cloud-run-2/Dockerfile 을 사용해 빌드한다.
+# 실행: gcloud builds submit --config cloud-run-2/cloudbuild.yaml --substitutions=_IMAGE=... .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'cloud-run-2/Dockerfile', '-t', '${_IMAGE}', '.']
+
+images:
+  - '${_IMAGE}'
+
+substitutions:
+  _IMAGE: 'asia-northeast3-docker.pkg.dev/iceu-songpa05/chatbot/chatbot-adc:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

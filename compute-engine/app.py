@@ -16,10 +16,17 @@ from pydantic import BaseModel
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 STATIC_DIR = Path(__file__).parent / "static"
 
-if not os.environ.get("GEMINI_API_KEY"):
-    raise RuntimeError("환경변수 GEMINI_API_KEY 가 설정되어 있지 않습니다.")
+# ADC 모드: GOOGLE_GENAI_USE_VERTEXAI=true 이면 API 키 대신 실행 환경의 신원(ADC)으로 인증한다.
+# (Cloud Run 에서는 런타임 서비스 계정이 곧 ADC 이므로 키가 필요 없다.)
+USE_VERTEXAI = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "").lower() in {"1", "true", "yes"}
 
-# genai.Client() 는 GEMINI_API_KEY 환경변수를 자동으로 읽는다.
+if not USE_VERTEXAI and not os.environ.get("GEMINI_API_KEY"):
+    raise RuntimeError(
+        "환경변수 GEMINI_API_KEY 가 설정되어 있지 않습니다. "
+        "(ADC 를 쓰려면 GOOGLE_GENAI_USE_VERTEXAI=true 와 GOOGLE_CLOUD_PROJECT/LOCATION 을 설정)"
+    )
+
+# genai.Client() 는 GEMINI_API_KEY 또는 GOOGLE_GENAI_USE_VERTEXAI/GOOGLE_CLOUD_* 환경변수를 자동으로 읽는다.
 client = genai.Client()
 # 도구(function calling)를 쓰지 않으므로 AFC 를 꺼서 불필요한 경고를 막는다.
 GEN_CONFIG = types.GenerateContentConfig(
